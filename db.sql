@@ -33,6 +33,19 @@ create table if not exists player_war_log (
     index(uuid, guild)
 );
 
+create table if not exists territory_log (
+    id int auto_increment,
+    territory varchar(60) not null,
+    acquired bigint not null,
+    attacker varchar(40) not null,
+    defender varchar(40) not null,
+    attacker_terr_count int,
+    defender_terr_count int,
+    held_for int not null,
+    war_id int,
+    primary key (id)
+);
+
 create table if not exists guild_xp (
     guild varchar(40),
     xp bigint,
