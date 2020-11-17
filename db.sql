@@ -8,7 +8,7 @@ create table if not exists war_log (
     defender_terr_count int,
     start_time bigint not null,
     end_time bigint not null,
-    verdict enum('started', 'won', 'lost') not null default 'started',
+    verdict enum('started', 'won', 'lost'),
     server varchar(8),
     terr_name varchar(40),
     total int not null default 0,
