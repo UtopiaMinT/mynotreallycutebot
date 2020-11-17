@@ -10,7 +10,7 @@ create table if not exists war_log (
     end_time bigint not null,
     verdict enum('started', 'ended', 'won', 'lost'),
     server varchar(8),
-    terr_name varchar(40),
+    terr_log int,
     total int not null default 0,
     won int not null default 0,
     primary key(id),

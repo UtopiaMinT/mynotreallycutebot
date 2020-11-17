@@ -236,7 +236,7 @@ public class Main implements Runnable {
                             stmt.setString(i++, Utils.getPlayerStats(player).getString("uuid"));
                             stmt.setString(i++, guild);
                         }
-                        LOGGER.info(String.format("Updated %d guild hint entries", stmt.executeUpdate()));
+                        LOGGER.info(String.format("Updated %d guild hint entries for %s", stmt.executeUpdate(), players));
                         stmt.close();
                         stmt = conn.prepareStatement("insert into player_war_log (war_id, ign, uuid, guild) VALUES " + Utils.questionMarkMatrix(players.size(), 4));
 
@@ -285,29 +285,7 @@ public class Main implements Runnable {
                     int defenderTerrCount = (int) (territoryOwners.values().stream().filter(x -> x.equals(defender)).count() - 1);
                     int acquired = (int) (sdf.parse(territoryMap.getJSONObject(name).getString("acquired")).getTime() / 1000);
                     int warId = 0;
-
-                    // find the most recent war by the guild
-                    stmt = conn.prepareStatement("select id from war_log where attacker=? and end_time<? order by id desc limit 1");
-                    stmt.setString(1, owner);
-                    stmt.setInt(2, acquired + 120);
-                    LOGGER.info(String.format("Looking for wars by %s and ended before %d", owner, acquired + 120));
-                    rs = stmt.executeQuery();
-
-                    if (rs.next()) {
-                        // such war exists, proceed to update it
-                        warId = rs.getInt(1);
-                        stmt.close();
-                        stmt = conn.prepareStatement("update war_log set defender=?, attacker_terr_count=?, defender_terr_count=?, end_time=?, verdict='won', terr_name=?, won=won+1 where id=?");
-                        stmt.setString(1, defender);
-                        stmt.setInt(2, attackerTerrCount);
-                        stmt.setInt(3, defenderTerrCount);
-                        stmt.setInt(4, acquired);
-                        stmt.setString(5, name);
-                        stmt.setInt(6, warId);
-                        stmt.executeUpdate();
-                        territoryOwners.put(name, owner);
-                    }
-                    stmt.close();
+                    int terrId;
 
                     // update the territory
                     stmt = conn.prepareStatement("replace into territories (guild, acquired, territory) values (?, ?, ?)");
@@ -317,7 +295,7 @@ public class Main implements Runnable {
                     stmt.executeUpdate();
                     stmt.close();
                     // insert the log
-                    stmt = conn.prepareStatement("insert into territory_log (territory, acquired, attacker, defender, attacker_terr_count, defender_terr_count, held_for, war_id) values (?, ?, ?, ?, ?, ?, ?, ?)");
+                    stmt = conn.prepareStatement("insert into territory_log (territory, acquired, attacker, defender, attacker_terr_count, defender_terr_count, held_for, war_id) values (?, ?, ?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
                     stmt.setString(1, name);
                     stmt.setInt(2, acquired);
                     stmt.setString(3, owner);
@@ -326,14 +304,17 @@ public class Main implements Runnable {
                     stmt.setInt(6, defenderTerrCount);
                     stmt.setInt(7, 0);
                     stmt.setInt(8, warId);
-                    stmt.executeUpdate();
+                    stmt.execute();
+                    rs = stmt.getGeneratedKeys();
+                    rs.next();
                     stmt.close();
+
                     LOGGER.info(String.format("Updated territory %s with war #%d", name, warId));
                 }
             }
 
-            // for every territory log that not yet has a war entry, we keep polling
-            stmt = conn.prepareStatement("select territory, acquired, attacker, defender, attacker_terr_count, defender_terr_count, id from territory_log where war_id=0");
+            // for every territory log that not yet has a war entry, including the ones we just inserted, we keep polling
+            stmt = conn.prepareStatement("select territory, acquired, attacker, defender, attacker_terr_count, defender_terr_count, id from territory_log where war_id=0 order by id");
             rs = stmt.executeQuery();
             while (rs.next()) {
                 if (rs.getInt(2) > System.currentTimeMillis() / 1000 - 120) {
@@ -347,13 +328,12 @@ public class Main implements Runnable {
                         // such war exists, proceed to update it
                         int warId = rs2.getInt(1);
                         stmt2.close();
-                        stmt2 = conn.prepareStatement("update war_log set defender=?, attacker_terr_count=?, defender_terr_count=?, end_time=?, verdict='won', terr_name=?, won=won+1 where id=?");
+                        stmt2 = conn.prepareStatement("update war_log set defender=?, attacker_terr_count=?, defender_terr_count=?, verdict='won', terr_log=?, won=won+1 where id=?");
                         stmt2.setString(1, rs.getString(4));
                         stmt2.setInt(2, rs.getInt(5));
                         stmt2.setInt(3, rs.getInt(6));
-                        stmt2.setInt(4, rs.getInt(2));
-                        stmt2.setString(5, rs.getString(1));
-                        stmt2.setInt(6, warId);
+                        stmt2.setInt(4, rs.getInt(7));
+                        stmt2.setInt(5, warId);
                         stmt2.executeUpdate();
                         stmt2.close();
 
@@ -361,10 +341,12 @@ public class Main implements Runnable {
                         stmt2.setInt(1, warId);
                         stmt2.setInt(2, rs.getInt(7));
                         stmt2.executeUpdate();
+
+                        LOGGER.info(String.format("Linked war #%d with territory log #%d", warId, rs.getInt(7)));
                     }
                 } else {
                     // it's a snipe, so add a "war" manually
-                    PreparedStatement stmt2 = conn.prepareStatement("insert into war_log (attacker, defender, attacker_terr_count, defender_terr_count, start_time, end_time, verdict, terr_name) VALUES " + Utils.questionMarks(8));
+                    PreparedStatement stmt2 = conn.prepareStatement("insert into war_log (attacker, defender, attacker_terr_count, defender_terr_count, start_time, end_time, verdict, terr_log) VALUES " + Utils.questionMarks(8));
                     stmt2.setString(1, rs.getString(3));
                     stmt2.setString(2, rs.getString(4));
                     stmt2.setInt(3, rs.getInt(5));
@@ -372,15 +354,18 @@ public class Main implements Runnable {
                     stmt2.setInt(5, rs.getInt(2));
                     stmt2.setInt(6, rs.getInt(2));
                     stmt2.setString(7, "won");
-                    stmt2.setString(8, rs.getString(1));
+                    stmt2.setInt(8, rs.getInt(7));
                     stmt2.executeUpdate();
                     stmt2.close();
 
                     stmt2 = conn.prepareStatement("update territory_log set war_id=-1 where id=?");
                     stmt2.setInt(1, rs.getInt(7));
                     stmt2.executeUpdate();
+
+                    LOGGER.info(String.format("Didn't find a war for territory log #%d", rs.getInt(7)));
                 }
             }
+            rs.close();
 
             // for the not-so-recently ended wars, we mark them as lost
             stmt = conn.prepareStatement("update war_log set verdict='lost' where verdict='ended' and end_time<unix_timestamp()-120");
