@@ -31,7 +31,6 @@ public class Main implements Runnable {
                 e.printStackTrace();
             }
             task();
-            System.out.println("completed");
             Thread.sleep(15000);
         }
     }
@@ -286,7 +285,6 @@ public class Main implements Runnable {
                     int defenderTerrCount = (int) (territoryOwners.values().stream().filter(x -> x.equals(defender)).count() - 1);
                     int acquired = (int) (sdf.parse(territoryMap.getJSONObject(name).getString("acquired")).getTime() / 1000);
                     int warId = 0;
-                    int terrId;
 
                     // update the territory
                     stmt = conn.prepareStatement("replace into territories (guild, acquired, territory) values (?, ?, ?)");
