@@ -8,7 +8,7 @@ create table if not exists war_log (
     defender_terr_count int,
     start_time bigint not null,
     end_time bigint not null,
-    verdict enum('started', 'won', 'lost'),
+    verdict enum('started', 'ended', 'won', 'lost'),
     server varchar(8),
     terr_name varchar(40),
     total int not null default 0,
@@ -53,6 +53,7 @@ create table if not exists lxa_contribution (
 create table if not exists player_session (
     ign varchar(40),
     uuid varchar(32),
+    server varchar(8) not null,
     session_start bigint,
     session_end bigint,
     total_playtime int,
