@@ -1,6 +1,6 @@
 -- general guild stuff
 
-create table war_log (
+create table if not exists war_log (
     id int auto_increment,
     attacker varchar(40) not null,
     defender varchar(40) not null,
@@ -18,7 +18,7 @@ create table war_log (
     index(start_time)
 );
 
-create table player_war_log (
+create table if not exists player_war_log (
     id int auto_increment,
     war_id int not null,
     ign varchar(16) not null,
@@ -30,7 +30,7 @@ create table player_war_log (
     index(uuid, guild)
 );
 
-create table guild_xp (
+create table if not exists guild_xp (
     guild varchar(40),
     xp bigint,
     level int,
@@ -39,7 +39,7 @@ create table guild_xp (
 );
 
 -- lxa stuff
-create table lxa_contribution (
+create table if not exists lxa_contribution (
     ign varchar(40),
     uuid varchar(32),
     xp bigint,
@@ -50,7 +50,7 @@ create table lxa_contribution (
 );
 
 -- stalking stuff
-create table player_session (
+create table if not exists player_session (
     ign varchar(40),
     uuid varchar(32),
     session_start bigint,
@@ -60,4 +60,23 @@ create table player_session (
     index(uuid)
 );
 
-create table
+-- cache thing
+create table if not exists timestamps (
+    tag varchar(16),
+    timestamp bigint not null,
+    primary key (tag)
+);
+
+create table if not exists ign_cache (
+    uuid varchar(32),
+    ign varchar(40),
+    time bigint,
+    primary key (uuid)
+);
+
+create table if not exists guild_tag (
+    guild varchar(40),
+    tag varchar(4),
+    index(guild),
+    index(tag)
+);
