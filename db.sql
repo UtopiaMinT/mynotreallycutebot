@@ -26,6 +26,9 @@ create table if not exists player_war_log (
     guild varchar(40) not null,
     total int not null default 0,
     won int not null default 0,
+    survived int not null default 0,
+    won_flag int not null default 0,
+    survived_until bigint not null default 0,
     primary key(id),
     index(uuid, guild)
 );
@@ -36,6 +39,13 @@ create table if not exists guild_xp (
     level int,
     timestamp bigint,
     primary key(timestamp, guild)
+);
+
+create table if not exists territories (
+    territory varchar(60) not null,
+    guild varchar(40) not null,
+    acquired bigint not null,
+    primary key (territory)
 );
 
 -- lxa stuff
@@ -80,4 +90,10 @@ create table if not exists guild_tag (
     tag varchar(4),
     index(guild),
     index(tag)
+);
+
+create table if not exists guild_hint (
+    uuid varchar(32) not null,
+    guild varchar(40) not null,
+    primary key (uuid)
 );
