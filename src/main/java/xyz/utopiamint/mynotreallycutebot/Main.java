@@ -217,6 +217,16 @@ public class Main implements Runnable {
                             if (verified) break;
                         }
                         if (!verified) guild = null;
+                    } else {
+                        // guild hint from player stats
+                        stmt = conn.prepareStatement("replace into guild_hint (uuid, guild) VALUES " + Utils.questionMarkMatrix(players.size(), 2));
+                        int i = 1;
+                        for (String player : players) {
+                            stmt.setString(i++, Utils.getPlayerStats(player).getString("uuid"));
+                            stmt.setString(i++, guild);
+                        }
+                        LOGGER.info(String.format("Updated %d guild hint entries for %s", stmt.executeUpdate(), players));
+                        stmt.close();
                     }
                     // finally we update the entry, as well as populate our guild hints and player war log
                     if (guild != null) {
@@ -229,19 +239,10 @@ public class Main implements Runnable {
                         stmt.close();
                         LOGGER.info(String.format("Updated war #%d attacker=%s", warsStarted.get(server), guild));
 
-                        // guild hint
-                        stmt = conn.prepareStatement("replace into guild_hint (uuid, guild) VALUES " + Utils.questionMarkMatrix(players.size(), 2));
-                        int i = 1;
-                        for (String player : players) {
-                            stmt.setString(i++, Utils.getPlayerStats(player).getString("uuid"));
-                            stmt.setString(i++, guild);
-                        }
-                        LOGGER.info(String.format("Updated %d guild hint entries for %s", stmt.executeUpdate(), players));
-                        stmt.close();
                         stmt = conn.prepareStatement("insert into player_war_log (war_id, ign, uuid, guild) VALUES " + Utils.questionMarkMatrix(players.size(), 4));
 
                         // player war log
-                        i = 1;
+                        int i = 1;
                         for (String player : players) {
                             stmt.setInt(i++, warsStarted.get(server));
                             stmt.setString(i++, player);
