@@ -229,24 +229,59 @@ public class Main implements Runnable {
                     }
                     // finally we update the entry, as well as populate our guild hints and player war log
                     if (guild != null) {
+                        // total and won counts
+                        stmt = conn.prepareStatement("select total, won FROM war_log where id=(select max(id) from war_log where attacker=?)");
+                        stmt.setString(1, guild);
+                        rs = stmt.executeQuery();
+                        int total = 0;
+                        int won = 0;
+                        if (rs.next()) {
+                            total = rs.getInt(1);
+                            won = rs.getInt(2);
+                        }
+                        stmt.close();
                         // attacker
-                        stmt = conn.prepareStatement("update war_log set attacker=?, start_time=?, verdict='started' where id=?");
+                        stmt = conn.prepareStatement("update war_log set attacker=?, start_time=?, total=?, won=?, verdict='started' where id=?");
                         stmt.setString(1, guild);
                         stmt.setInt(2, onlinePlayerTimestamp);
-                        stmt.setInt(3, warsStarted.get(server));
+                        stmt.setInt(3, total + 1);
+                        stmt.setInt(4, won);
+                        stmt.setInt(5, warsStarted.get(server));
                         stmt.executeUpdate();
                         stmt.close();
                         LOGGER.info(String.format("Updated war #%d attacker=%s", warsStarted.get(server), guild));
 
-                        stmt = conn.prepareStatement("insert into player_war_log (war_id, ign, uuid, guild) VALUES " + Utils.questionMarkMatrix(players.size(), 4));
-
-                        // player war log
+                        // player war counts
+                        Map<String, Integer> totalMap = new HashMap<>();
+                        Map<String, Integer> wonMap = new HashMap<>();
+                        Map<String, Integer> survivedMap = new HashMap<>();
+                        Map<String, String> uuidMap = new HashMap<>();
+                        stmt = conn.prepareStatement("SELECT uuid, total, won, survived FROM `player_war_log` where id in (select max(id) from player_war_log where uuid in " + Utils.questionMarks(players.size()) + " and guild=? group by uuid)");
                         int i = 1;
                         for (String player : players) {
+                            String uuid = Utils.getPlayerStats(player).getString("uuid");
+                            uuidMap.put(player, uuid);
+                            stmt.setString(i++, uuid);
+                        }
+                        stmt.setString(i, guild);
+                        rs = stmt.executeQuery();
+                        while (rs.next()) {
+                            totalMap.put(rs.getString(1), rs.getInt(2));
+                            wonMap.put(rs.getString(1), rs.getInt(3));
+                            survivedMap.put(rs.getString(1), rs.getInt(4));
+                        }
+                        // player war log
+                        stmt = conn.prepareStatement("insert into player_war_log (war_id, ign, uuid, guild, total, won, survived) VALUES " + Utils.questionMarkMatrix(players.size(), 6));
+                        i = 1;
+                        for (String player : players) {
+                            String uuid = uuidMap.get(player);
                             stmt.setInt(i++, warsStarted.get(server));
                             stmt.setString(i++, player);
-                            stmt.setString(i++, Utils.getPlayerStats(player).getString("uuid"));
+                            stmt.setString(i++, uuid);
                             stmt.setString(i++, guild);
+                            stmt.setInt(i++, totalMap.get(uuid) + 1);
+                            stmt.setInt(i++, wonMap.get(uuid));
+                            stmt.setInt(i++, survivedMap.get(uuid));
                         }
                         LOGGER.info(String.format("Inserted %d player war log entries", stmt.executeUpdate()));
                         stmt.close();
@@ -284,7 +319,6 @@ public class Main implements Runnable {
                     int attackerTerrCount = (int) (territoryOwners.values().stream().filter(x -> x.equals(owner)).count() + 1);
                     int defenderTerrCount = (int) (territoryOwners.values().stream().filter(x -> x.equals(defender)).count() - 1);
                     int acquired = (int) (sdf.parse(territoryMap.getJSONObject(name).getString("acquired")).getTime() / 1000);
-                    int warId = 0;
 
                     // update the territory
                     stmt = conn.prepareStatement("replace into territories (guild, acquired, territory) values (?, ?, ?)");
@@ -302,13 +336,13 @@ public class Main implements Runnable {
                     stmt.setInt(5, attackerTerrCount);
                     stmt.setInt(6, defenderTerrCount);
                     stmt.setInt(7, 0);
-                    stmt.setInt(8, warId);
+                    stmt.setInt(8, 0);
                     stmt.execute();
                     rs = stmt.getGeneratedKeys();
                     rs.next();
                     stmt.close();
 
-                    LOGGER.info(String.format("Updated territory %s with war #%d", name, warId));
+                    LOGGER.info(String.format("Updated territory %s", name));
                 }
             }
 
@@ -344,8 +378,20 @@ public class Main implements Runnable {
                         LOGGER.info(String.format("Linked war #%d with territory log #%d", warId, rs.getInt(7)));
                     }
                 } else {
+                    // total and won counts
+                    PreparedStatement stmt2 = conn.prepareStatement("select total, won FROM war_log where id=(select max(id) from war_log where attacker=?)");
+                    stmt2.setString(1, rs.getString(3));
+                    ResultSet rs2 = stmt2.executeQuery();
+                    int total = 0;
+                    int won = 0;
+                    if (rs2.next()) {
+                        total = rs2.getInt(1);
+                        won = rs2.getInt(2);
+                    }
+                    stmt2.close();
+
                     // it's a snipe, so add a "war" manually
-                    PreparedStatement stmt2 = conn.prepareStatement("insert into war_log (attacker, defender, attacker_terr_count, defender_terr_count, start_time, end_time, verdict, terr_log) VALUES " + Utils.questionMarks(8));
+                    stmt2 = conn.prepareStatement("insert into war_log (attacker, defender, attacker_terr_count, defender_terr_count, start_time, end_time, verdict, terr_log, won, total) VALUES " + Utils.questionMarks(10));
                     stmt2.setString(1, rs.getString(3));
                     stmt2.setString(2, rs.getString(4));
                     stmt2.setInt(3, rs.getInt(5));
@@ -354,6 +400,8 @@ public class Main implements Runnable {
                     stmt2.setInt(6, rs.getInt(2));
                     stmt2.setString(7, "won");
                     stmt2.setInt(8, rs.getInt(7));
+                    stmt2.setInt(9, won);
+                    stmt2.setInt(10, total);
                     stmt2.executeUpdate();
                     stmt2.close();
 
