@@ -271,7 +271,7 @@ public class Main implements Runnable {
                             survivedMap.put(rs.getString(1), rs.getInt(4));
                         }
                         // player war log
-                        stmt = conn.prepareStatement("insert into player_war_log (war_id, ign, uuid, guild, total, won, survived) VALUES " + Utils.questionMarkMatrix(players.size(), 6));
+                        stmt = conn.prepareStatement("insert into player_war_log (war_id, ign, uuid, guild, total, won, survived) VALUES " + Utils.questionMarkMatrix(players.size(), 7));
                         i = 1;
                         for (String player : players) {
                             String uuid = uuidMap.get(player);
@@ -279,9 +279,9 @@ public class Main implements Runnable {
                             stmt.setString(i++, player);
                             stmt.setString(i++, uuid);
                             stmt.setString(i++, guild);
-                            stmt.setInt(i++, totalMap.get(uuid) + 1);
-                            stmt.setInt(i++, wonMap.get(uuid));
-                            stmt.setInt(i++, survivedMap.get(uuid));
+                            stmt.setInt(i++, totalMap.getOrDefault(uuid, 0) + 1);
+                            stmt.setInt(i++, wonMap.getOrDefault(uuid, 0));
+                            stmt.setInt(i++, survivedMap.getOrDefault(uuid, 0));
                         }
                         LOGGER.info(String.format("Inserted %d player war log entries", stmt.executeUpdate()));
                         stmt.close();
@@ -370,6 +370,20 @@ public class Main implements Runnable {
                         stmt2.executeUpdate();
                         stmt2.close();
 
+                        // player war log
+                        stmt2 = conn.prepareStatement("select max(survived_until) from player_war_log where war_id=?");
+                        stmt2.setInt(1, warId);
+                        rs2 = stmt2.executeQuery();
+                        rs2.next();
+                        int endTime = rs2.getInt(1);
+                        stmt2.close();
+                        stmt2 = conn.prepareStatement("update player_war_log set won=won+1, survived=survived+(survived_until=?) where war_id=?");
+                        stmt2.setInt(1, endTime);
+                        stmt2.setInt(2, warId);
+                        stmt2.executeUpdate();
+                        stmt2.close();
+
+                        // territory log
                         stmt2 = conn.prepareStatement("update territory_log set war_id=? where id=?");
                         stmt2.setInt(1, warId);
                         stmt2.setInt(2, rs.getInt(7));
