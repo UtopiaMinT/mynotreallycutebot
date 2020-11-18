@@ -20,16 +20,16 @@ public class Main implements Runnable {
 
     public static void main(String[] args) throws InterruptedException {
         populateTerritories();
-        while (true) {
-            InputStream stream = Main.class.getClassLoader().
-                    getResourceAsStream("logging.properties");
-            try {
-                LogManager.getLogManager().readConfiguration(stream);
-                LOGGER = Logger.getLogger(Main.class.getName());
+        InputStream stream = Main.class.getClassLoader().
+                getResourceAsStream("logging.properties");
+        try {
+            LogManager.getLogManager().readConfiguration(stream);
+            LOGGER = Logger.getLogger(Main.class.getName());
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        while (true) {
             task();
             Thread.sleep(15000);
         }
