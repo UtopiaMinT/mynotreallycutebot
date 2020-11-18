@@ -6,10 +6,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -41,6 +38,7 @@ public class Utils {
 
     public static JSONObject getPlayerStats(String player) {
         long now = System.currentTimeMillis();
+        sweepCache();
         if (playerCacheTime.containsKey(player) && playerCacheTime.get(player) > now - 60000) {
             return playerCache.get(player);
         }
@@ -61,12 +59,13 @@ public class Utils {
 
     public static JSONObject getGuildStats(String guild) {
         long now = System.currentTimeMillis();
+        sweepCache();
         if (guildCacheTime.containsKey(guild) && guildCacheTime.get(guild) > now - 60000) {
             return guildCache.get(guild);
         }
         JSONObject resp = new JSONObject(httpGet(Constants.API_GUILD_STATS.replace("%s", guild)));
         if (resp.getInt("code") == 200) {
-            long timestamp = resp.getLong("timestamp");
+            long timestamp = resp.getJSONObject("request").getLong("timestamp") * 1000L;
             guildCache.put(guild, resp);
             guildCacheTime.put(guild, timestamp);
         }
@@ -93,6 +92,12 @@ public class Utils {
         }
         sb.append(questionMarks(columns));
         return sb.toString();
+    }
+
+    private static void sweepCache() {
+        long now = System.currentTimeMillis();
+        playerCache.entrySet().removeIf(entry -> playerCacheTime.get(entry.getKey()) < now - 60000);
+        guildCache.entrySet().removeIf(entry -> guildCacheTime.get(entry.getKey()) < now - 60000);
     }
 
     private static String httpGet(String url) {
