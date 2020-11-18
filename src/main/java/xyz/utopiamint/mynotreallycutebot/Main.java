@@ -54,7 +54,9 @@ public class Main implements Runnable {
         // config
         Properties props = new Properties();
         try {
-            props.load(new FileInputStream(new File(("bot.cfg"))));
+            FileInputStream propsFile = new FileInputStream(new File(("bot.cfg")));
+            props.load(propsFile);
+            propsFile.close();
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Cannot read config file", e);
             return;
@@ -67,6 +69,8 @@ public class Main implements Runnable {
                 stmt.setString(i++, territoryMap.getJSONObject(name).getString("guild"));
                 stmt.setInt(i++, (int) (sdf.parse(territoryMap.getJSONObject(name).getString("acquired")).getTime() / 1000));
             }
+            stmt.executeUpdate();
+            stmt.close();
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Database error", e);
         } catch (ParseException e) {
@@ -79,7 +83,9 @@ public class Main implements Runnable {
         // config
         Properties props = new Properties();
         try {
-            props.load(new FileInputStream(new File(("bot.cfg"))));
+            FileInputStream propsFile = new FileInputStream(new File(("bot.cfg")));
+            props.load(propsFile);
+            propsFile.close();
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Cannot read config file", e);
             return;
