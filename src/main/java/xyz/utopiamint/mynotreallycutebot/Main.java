@@ -20,20 +20,38 @@ public class Main implements Runnable {
     private static Logger LOGGER;
 
     public static void main(String[] args) throws InterruptedException {
-        populateTerritories();
-        InputStream stream = Main.class.getClassLoader().
-                getResourceAsStream("logging.properties");
-        try {
-            LogManager.getLogManager().readConfiguration(stream);
-            LOGGER = Logger.getLogger(Main.class.getName());
+        if (args.length == 1) {
+            switch (args[0]) {
+                case "run":
+                    InputStream stream = Main.class.getClassLoader().
+                            getResourceAsStream("logging.properties");
+                    try {
+                        LogManager.getLogManager().readConfiguration(stream);
+                        LOGGER = Logger.getLogger(Main.class.getName());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    while (true) {
+                        task();
+                        Thread.sleep(15000);
+                        if (1 == 0) {
+                            break;
+                        }
+                    }
+                    break;
+                case "populate":
+                    populateTerritories();
+                    break;
+                default:
+                    help();
+            }
+        } else {
+            help();
+        }
+    }
 
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        while (true) {
-            task();
-            Thread.sleep(15000);
-        }
+    private static void help() {
+        System.out.println("usage: <jar> <populate|run>");
     }
 
     @Override
