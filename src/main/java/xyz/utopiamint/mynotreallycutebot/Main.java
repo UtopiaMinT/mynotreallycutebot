@@ -1,5 +1,6 @@
 package xyz.utopiamint.mynotreallycutebot;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -218,7 +219,13 @@ public class Main implements Runnable {
                         Set<String> members = guildStats.getJSONArray("members").toList().stream().map(x -> ((JSONObject) x).getString("uuid").replaceAll("-", "")).collect(Collectors.toSet());
                         boolean verified = false;
                         for (String player : players) {
-                            verified = members.contains(Utils.getPlayerStats(player).getString("uuid"));
+                            JSONObject playerInfo = Utils.getPlayerStats(player);
+                            if (playerInfo.getInt("code") != 200) {
+                                LOGGER.warning(String.format("Cannot get info for player %s", player));
+                                continue;
+                            }
+                            String playerUuid = playerInfo.getString("uuid");
+                            verified = members.contains(playerUuid);
                             if (verified) break;
                         }
                         if (!verified) guild = null;
@@ -227,7 +234,13 @@ public class Main implements Runnable {
                         stmt = conn.prepareStatement("replace into guild_hint (uuid, guild) VALUES " + Utils.questionMarkMatrix(players.size(), 2));
                         int i = 1;
                         for (String player : players) {
-                            stmt.setString(i++, Utils.getPlayerStats(player).getString("uuid"));
+                            JSONObject playerInfo = Utils.getPlayerStats(player);
+                            if (playerInfo.getInt("code") != 200) {
+                                LOGGER.warning(String.format("Cannot get info for player %s", player));
+                                continue;
+                            }
+                            String playerUuid = playerInfo.getString("uuid");
+                            stmt.setString(i++, playerUuid);
                             stmt.setString(i++, guild);
                         }
                         LOGGER.info(String.format("Updated %d guild hint entries for %s", stmt.executeUpdate(), players));
@@ -444,6 +457,8 @@ public class Main implements Runnable {
             LOGGER.log(Level.SEVERE, "Database error", e);
         } catch (ParseException e) {
             LOGGER.log(Level.SEVERE, "Date parse error", e);
+        } catch (JSONException e) {
+            LOGGER.log(Level.SEVERE, "JSON error", e);
         }
     }
 }
