@@ -33,10 +33,10 @@ public class Main implements Runnable {
                     }
                     while (true) {
                         task();
-                        Thread.sleep(15000);
-                        if (1 == 0) {
+                        if (Math.random() == 1.9) {
                             break;
                         }
+                        Thread.sleep(15000);
                     }
                     break;
                 case "populate":
@@ -71,7 +71,10 @@ public class Main implements Runnable {
         sdf.setTimeZone(TimeZone.getTimeZone("GMT"));
 
         // config
-        Properties props = new Properties();
+        Properties props = readConfigFile();
+        if (props == null) {
+            return;
+        }
         try {
             FileInputStream propsFile = new FileInputStream(new File(("bot.cfg")));
             props.load(propsFile);
@@ -100,13 +103,8 @@ public class Main implements Runnable {
     private static void task() {
         LOGGER.info("Task started");
         // config
-        Properties props = new Properties();
-        try {
-            FileInputStream propsFile = new FileInputStream(new File(("bot.cfg")));
-            props.load(propsFile);
-            propsFile.close();
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Cannot read config file", e);
+        Properties props = readConfigFile();
+        if (props == null) {
             return;
         }
         try (Connection conn = connect(props)) {
@@ -478,5 +476,18 @@ public class Main implements Runnable {
         } catch (JSONException e) {
             LOGGER.log(Level.SEVERE, "JSON error", e);
         }
+    }
+
+    private static Properties readConfigFile() {
+        Properties props = new Properties();
+        try {
+            FileInputStream propsFile = new FileInputStream(new File(("bot.cfg")));
+            props.load(propsFile);
+            propsFile.close();
+        } catch (IOException e) {
+            LOGGER.log(Level.SEVERE, "Cannot read config file", e);
+            return null;
+        }
+        return props;
     }
 }
