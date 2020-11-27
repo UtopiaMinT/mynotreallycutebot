@@ -6,6 +6,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -13,14 +17,20 @@ import java.util.stream.Collectors;
 
 public class Utils {
     private static OkHttpClient client = new OkHttpClient();
-    private static Logger logger = Logger.getLogger(Main.class.getName());
+    private static Logger logger = Logger.getLogger(Utils.class.getName());
     // player stats cache
     private static Map<String, JSONObject> playerCache = new HashMap<>();
     private static Map<String, Long> playerCacheTime = new HashMap<>();
     // guild stats cache
     private static Map<String, JSONObject> guildCache = new HashMap<>();
     private static Map<String, Long> guildCacheTime = new HashMap<>();
+    // ign cache
+    private static Map<String, String> ignCache = new HashMap<>();
 
+    /**
+     * Gets online players
+     * @return A map of server name => list of players online in that server
+     */
     public static Map<String, List<String>> getOnlinePlayers() {
         JSONObject resp = new JSONObject(httpGet(Constants.API_ONLINE_PLAYERS));
         Map<String, List<String>> players = new HashMap<>();
@@ -36,6 +46,11 @@ public class Utils {
         return players;
     }
 
+    /**
+     * Gets player stats
+     * @param player the player's ign or uuid without dashes
+     * @return Wynn API response as a JSONObject with data[0] mapped to data and a convenient uuid field
+     */
     public static JSONObject getPlayerStats(String player) {
         long now = System.currentTimeMillis();
         sweepCache();
@@ -57,6 +72,11 @@ public class Utils {
         return resp;
     }
 
+    /**
+     * Gets guild stats
+     * @param guild Guild name
+     * @return Wynn API response as a JSONObject
+     */
     public static JSONObject getGuildStats(String guild) {
         long now = System.currentTimeMillis();
         sweepCache();
@@ -72,8 +92,76 @@ public class Utils {
         return resp;
     }
 
+    /**
+     * Gets territory list
+     * @return Wynn API response as a JSONObject
+     */
     public static JSONObject getTerritoryList() {
         return new JSONObject(httpGet(Constants.API_TERRITORIES));
+    }
+
+    /**
+     * Requests the uuid of the supplied list of ign, may take longer to return if the list is long
+     * @param conn The database connection for us to retrieve and store the ign caches
+     * @param names Player ign
+     * @return A map of name => uuid
+     */
+    public static Map<String, String> ignToUuidBulk(Connection conn, Collection<String> names) throws SQLException{
+        Map<String, String> result = new HashMap<>();
+        names = names.stream().map(String::toLowerCase).collect(Collectors.toList());
+        // first of all, we consult our own ign cache
+        Set<String> remainingNames = new HashSet<>(names);
+        ignCache.keySet().stream().filter(remainingNames::contains).forEach(x -> {
+            result.put(x, ignCache.get(x));
+            remainingNames.remove(x);
+        });
+        // then we go for the database
+        PreparedStatement stmt = conn.prepareStatement("select uuid, ign_lower from ign_cache where time>? and ign in " + questionMarks(remainingNames.size()));
+        stmt.setInt(1, (int) ((System.currentTimeMillis() - 172800000) / 1000));
+        int i = 2;
+        for (String name : remainingNames) {
+            stmt.setString(i++, name);
+        }
+        ResultSet rs = stmt.executeQuery();
+        while (rs.next()) {
+            String uuid = rs.getString(1);
+            String ign = rs.getString(2);
+            result.put(ign, uuid);
+            remainingNames.remove(ign);
+        }
+        stmt.close();
+        // for the remaining, we go for the mojang api, 10 names at a time
+        List<String> nameList = new ArrayList<>(remainingNames);
+        Map<String, String> newNames = new HashMap<>();
+        for (i = 0; i < (nameList.size() + 9) / 10; ++i) {
+            JSONArray array = new JSONArray();
+            for (int j = i * 10; j < i * 10 + 10 && j < nameList.size(); j++) {
+                array.put(nameList.get(j));
+            }
+            String resp = httpPost(Constants.MOJANG_UUID_API, array.toString());
+            JSONArray batch = new JSONArray(resp);
+            for (int j = 0; j < batch.length(); j++) {
+                JSONObject mcProfile = batch.getJSONObject(j);
+                String uuid = mcProfile.getString("id");
+                String ign = mcProfile.getString("name");
+                newNames.put(uuid, ign);
+                result.put(ign, uuid);
+            }
+        }
+        // finally, we upload everything new to the database (if any)
+        if (!newNames.isEmpty()) {
+            stmt = conn.prepareStatement("replace into ign_cache (uuid, ign, ign_lower, time) VALUES " + questionMarkMatrix(newNames.size(), 4));
+            i = 1;
+            int time = (int) (System.currentTimeMillis() / 1000);
+            for (Map.Entry<String, String> entry : newNames.entrySet()) {
+                stmt.setString(i++, entry.getKey());
+                stmt.setString(i++, entry.getValue());
+                stmt.setString(i++, entry.getValue().toLowerCase());
+                stmt.setInt(i++, time);
+            }
+            logger.info(String.format("Updated %d rows for ign_cache", stmt.executeUpdate()));
+        }
+        return result;
     }
 
     public static String questionMarks(int count) {
@@ -109,25 +197,17 @@ public class Utils {
     }
 
     private static String httpPost(String url, String content) {
+        RequestBody body = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), content);
         Request request = new Request.Builder()
                 .url(url)
-                .post(new RequestBody() {
-                    @Override
-                    public MediaType contentType() {
-                        return MediaType.get("application/json");
-                    }
-
-                    @Override
-                    public void writeTo(BufferedSink sink) throws IOException {
-                        sink.write(content.getBytes());
-                    }
-                })
+                .post(body)
                 .build();
         return http(request);
     }
 
     private static String http(Request request) {
         try {
+            logger.info(String.format("%s %s %s %s", request.method(), request.url(), request.body().contentType(), request.body().contentLength()));
             Response response = client.newCall(request).execute();
             if (response.body() != null) {
                 return response.body().string();

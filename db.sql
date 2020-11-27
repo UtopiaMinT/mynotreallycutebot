@@ -75,13 +75,16 @@ create table if not exists lxa_contribution (
 -- stalking stuff
 create table if not exists player_session (
     ign varchar(40),
+    ign_lower varchar(40),
     uuid varchar(32),
     server varchar(8) not null,
     session_start bigint,
     session_end bigint,
     total_playtime int,
     primary key (uuid, session_start),
-    index(uuid)
+    index(uuid),
+    index(ign),
+    index(ign_lower)
 );
 
 -- cache thing

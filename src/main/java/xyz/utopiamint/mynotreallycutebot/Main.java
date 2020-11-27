@@ -20,17 +20,17 @@ public class Main implements Runnable {
     private static Logger LOGGER;
 
     public static void main(String[] args) throws InterruptedException {
+        InputStream stream = Main.class.getClassLoader().
+                getResourceAsStream("logging.properties");
+        try {
+            LogManager.getLogManager().readConfiguration(stream);
+            LOGGER = Logger.getLogger(Main.class.getName());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         if (args.length == 1) {
             switch (args[0]) {
                 case "run":
-                    InputStream stream = Main.class.getClassLoader().
-                            getResourceAsStream("logging.properties");
-                    try {
-                        LogManager.getLogManager().readConfiguration(stream);
-                        LOGGER = Logger.getLogger(Main.class.getName());
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
                     while (true) {
                         task();
                         if (Math.random() == 1.9) {
@@ -42,10 +42,14 @@ public class Main implements Runnable {
                 case "populate":
                     populateTerritories();
                     break;
+                case "test_ign":
+                    testIgn();
+                    break;
                 default:
                     help();
             }
         } else {
+            testIgn();
             help();
         }
     }
@@ -62,6 +66,30 @@ public class Main implements Runnable {
     private static Connection connect(Properties props) throws SQLException {
         String connStr = String.format("jdbc:mysql://%s/%s?user=%s&password=%s&useSSL=false&autoReconnect=true", props.getProperty("db.host"), props.getProperty("db.name"), props.getProperty("db.user"), props.getProperty("db.pass"));
         return DriverManager.getConnection(connStr);
+    }
+
+    private static void testIgn() {
+        Properties props = readConfigFile();
+        if (props == null) {
+            return;
+        }
+        try (Connection conn = connect(props)) {
+            List<String> names = new ArrayList<>();
+            names.add("MeadowShadow");
+            names.add("Scottmad");
+            names.add("Aerrihn");
+            names.add("Nieke");
+            names.add("Archhn");
+            names.add("Itachiyama");
+            names.add("Zefs");
+            names.add("Maximouchou");
+            names.add("EspChar");
+            names.add("therealgman");
+            names.add("Razyrwynd");
+            System.out.println(Utils.ignToUuidBulk(conn, names));
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Database error", e);
+        }
     }
 
     private static void populateTerritories() {
