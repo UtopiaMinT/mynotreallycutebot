@@ -513,7 +513,7 @@ public class Main implements Runnable {
 
             for (Map.Entry<String, List<String>> onlineServer : onlinePlayers.entrySet()) {
                 String server = onlineServer.getKey();
-                if (server.equals("timestamp")) {
+                if (server.equals("timestamp") || server.startsWith("lobby")) {
                     continue;
                 }
                 Set<String> playersOnServer = new HashSet<>(onlineServer.getValue());
