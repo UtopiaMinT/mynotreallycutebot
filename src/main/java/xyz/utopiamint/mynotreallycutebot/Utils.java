@@ -106,7 +106,7 @@ public class Utils {
         Map<String, String> result = new HashMap<>();
         Set<String> remainingNames = new HashSet<>(names);
         // first we go for the database
-        PreparedStatement stmt = conn.prepareStatement("select uuid, ign_lower from ign_cache where time>? and ign_lower in " + questionMarks(remainingNames.size()));
+        PreparedStatement stmt = conn.prepareStatement("select uuid, ign from ign_cache where time>? and ign_lower in " + questionMarks(remainingNames.size()));
         stmt.setInt(1, (int) ((System.currentTimeMillis() - 172800000) / 1000));
         int i = 2;
         for (String name : remainingNames) {
