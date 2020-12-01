@@ -1,11 +1,9 @@
 package xyz.utopiamint.mynotreallycutebot;
 
 import okhttp3.*;
-import okio.BufferedSink;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -24,8 +22,6 @@ public class Utils {
     // guild stats cache
     private static Map<String, JSONObject> guildCache = new HashMap<>();
     private static Map<String, Long> guildCacheTime = new HashMap<>();
-    // ign cache
-    private static Map<String, String> ignCache = new HashMap<>();
 
     /**
      * Gets online players
@@ -108,19 +104,13 @@ public class Utils {
      */
     public static Map<String, String> ignToUuidBulk(Connection conn, Collection<String> names) throws SQLException{
         Map<String, String> result = new HashMap<>();
-        names = names.stream().map(String::toLowerCase).collect(Collectors.toList());
-        // first of all, we consult our own ign cache
         Set<String> remainingNames = new HashSet<>(names);
-        ignCache.keySet().stream().filter(remainingNames::contains).forEach(x -> {
-            result.put(x, ignCache.get(x));
-            remainingNames.remove(x);
-        });
-        // then we go for the database
-        PreparedStatement stmt = conn.prepareStatement("select uuid, ign_lower from ign_cache where time>? and ign in " + questionMarks(remainingNames.size()));
+        // first we go for the database
+        PreparedStatement stmt = conn.prepareStatement("select uuid, ign_lower from ign_cache where time>? and ign_lower in " + questionMarks(remainingNames.size()));
         stmt.setInt(1, (int) ((System.currentTimeMillis() - 172800000) / 1000));
         int i = 2;
         for (String name : remainingNames) {
-            stmt.setString(i++, name);
+            stmt.setString(i++, name.toLowerCase());
         }
         ResultSet rs = stmt.executeQuery();
         while (rs.next()) {
@@ -139,6 +129,8 @@ public class Utils {
                 array.put(nameList.get(j));
             }
             String resp = httpPost(Constants.MOJANG_UUID_API, array.toString());
+            System.out.println(array);
+            System.out.println(resp);
             JSONArray batch = new JSONArray(resp);
             for (int j = 0; j < batch.length(); j++) {
                 JSONObject mcProfile = batch.getJSONObject(j);
@@ -207,7 +199,7 @@ public class Utils {
 
     private static String http(Request request) {
         try {
-            logger.info(String.format("%s %s %s %s", request.method(), request.url(), request.body().contentType(), request.body().contentLength()));
+            logger.info(String.format("%s %s", request.method(), request.url()));
             Response response = client.newCall(request).execute();
             if (response.body() != null) {
                 return response.body().string();

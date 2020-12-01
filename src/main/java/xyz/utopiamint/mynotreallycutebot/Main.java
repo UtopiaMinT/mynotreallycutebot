@@ -49,8 +49,8 @@ public class Main implements Runnable {
                     help();
             }
         } else {
-            testIgn();
             help();
+//            task();
         }
     }
 
@@ -495,6 +495,80 @@ public class Main implements Runnable {
             stmt = conn.prepareStatement("update war_log set verdict='lost' where verdict='ended' and end_time<unix_timestamp()-120");
             LOGGER.info(String.format("Marked %d wars as lost", stmt.executeUpdate()));
             stmt.close();
+
+            // end of war stuff
+
+            // player stalking
+            // first of all, we find everyone that was online
+            stmt = conn.prepareStatement("select ign, uuid, server from player_session where session_end is null");
+            rs = stmt.executeQuery();
+            Map<String, String> playerUuids = new HashMap<>();
+            Map<String, String> playerServers = new HashMap<>();
+            while (rs.next()) {
+                playerUuids.put(rs.getString(1), rs.getString(2));
+                playerServers.put(rs.getString(1), rs.getString(3));
+            }
+            List<String> loggedOffPlayers = new ArrayList<>();
+            Map<String, String> loggedOnPlayers = new HashMap<>();
+
+            for (Map.Entry<String, List<String>> onlineServer : onlinePlayers.entrySet()) {
+                String server = onlineServer.getKey();
+                if (server.equals("timestamp")) {
+                    continue;
+                }
+                Set<String> playersOnServer = new HashSet<>(onlineServer.getValue());
+                Set<String> playerRecords = playerServers.entrySet().stream().filter(x -> x.getValue().equals(server)).map(Map.Entry::getKey).collect(Collectors.toSet());
+                Set<String> loggedOn = new HashSet<>(playersOnServer);
+                loggedOn.removeAll(playerRecords);
+                Set<String> loggedOff = new HashSet<>(playerRecords);
+                loggedOff.removeAll(playersOnServer);
+                loggedOffPlayers.addAll(loggedOff);
+                for (String player : loggedOn) {
+                    loggedOnPlayers.put(player, server);
+                }
+            }
+            LOGGER.info(String.format("Logged off players: %d", loggedOffPlayers.size()));
+            if (!loggedOffPlayers.isEmpty()) {
+                stmt = conn.prepareStatement("update player_session set session_end=? and total_playtime=total_playtime+?-session_start where session_end is null and uuid in " + Utils.questionMarks(loggedOffPlayers.size()));
+                stmt.setInt(1, onlinePlayerTimestamp);
+                stmt.setInt(2, onlinePlayerTimestamp);
+                int i = 3;
+                for (String name : loggedOffPlayers) {
+                    stmt.setString(i++, playerUuids.get(name));
+                }
+                LOGGER.info(String.format("Updated %d rows for logged off players", stmt.executeUpdate()));
+                stmt.close();
+            }
+            LOGGER.info(String.format("Logged on players: %d", loggedOnPlayers.size()));
+            if (!loggedOnPlayers.isEmpty()) {
+                playerUuids.putAll(Utils.ignToUuidBulk(conn, loggedOnPlayers.keySet()));
+                int i = 1;
+                stmt = conn.prepareStatement("select uuid, max(total_playtime) from player_session where uuid in " + Utils.questionMarks(loggedOnPlayers.size()));
+                for (String name : loggedOnPlayers.keySet()) {
+                    stmt.setString(i++, playerUuids.get(name));
+                }
+                rs = stmt.executeQuery();
+                Map<String, Integer> playtimes = new HashMap<>();
+                while (rs.next()) {
+                    playtimes.put(rs.getString(1), rs.getInt(2));
+                }
+                stmt.close();
+                i = 1;
+                stmt = conn.prepareStatement("insert into player_session (ign, uuid, server, session_start, total_playtime) VALUES " + Utils.questionMarkMatrix(loggedOnPlayers.size(), 5));
+                for (Map.Entry<String, String> loggedOnPlayer : loggedOnPlayers.entrySet()) {
+                    String uuid = playerUuids.get(loggedOnPlayer.getKey());
+                    if (uuid == null) {
+                        LOGGER.warning(String.format("No UUID for %s", loggedOnPlayer.getKey()));
+                    }
+                    stmt.setString(i++, loggedOnPlayer.getKey());
+                    stmt.setString(i++, uuid);
+                    stmt.setString(i++, loggedOnPlayer.getValue());
+                    stmt.setInt(i++, onlinePlayerTimestamp);
+                    stmt.setInt(i++, playtimes.getOrDefault(uuid, 0));
+                }
+                LOGGER.info(String.format("Updated %d rows for logged on players", stmt.executeUpdate()));
+                stmt.close();
+            }
 
             LOGGER.info("Task completed");
         } catch (SQLException e) {
