@@ -529,7 +529,7 @@ public class Main implements Runnable {
             }
             LOGGER.info(String.format("Logged off players: %d", loggedOffPlayers.size()));
             if (!loggedOffPlayers.isEmpty()) {
-                stmt = conn.prepareStatement("update player_session set session_end=? and total_playtime=total_playtime+?-session_start where session_end is null and uuid in " + Utils.questionMarks(loggedOffPlayers.size()));
+                stmt = conn.prepareStatement("update player_session set session_end=?, total_playtime=total_playtime+?-session_start where session_end is null and uuid in " + Utils.questionMarks(loggedOffPlayers.size()));
                 stmt.setInt(1, onlinePlayerTimestamp);
                 stmt.setInt(2, onlinePlayerTimestamp);
                 int i = 3;

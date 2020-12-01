@@ -129,8 +129,6 @@ public class Utils {
                 array.put(nameList.get(j));
             }
             String resp = httpPost(Constants.MOJANG_UUID_API, array.toString());
-            System.out.println(array);
-            System.out.println(resp);
             JSONArray batch = new JSONArray(resp);
             for (int j = 0; j < batch.length(); j++) {
                 JSONObject mcProfile = batch.getJSONObject(j);
